@@ -29,7 +29,7 @@ int		create_socket();
 
 int	main(int argc, char **argv)
 {
-	if (ac != 2)
+	if (argc != 2)
 	{
 		write(2, "Wrong number of arguments\n", 26);
 		exit(1);
@@ -66,7 +66,7 @@ int	main(int argc, char **argv)
 			{
 				socklen_t addr_len = sizeof(servaddr);
 				int client_fd = accept(sockfd, (struct sockaddr *)&servaddr, &addr_len);
-				if (clinet_fd >= 0)
+				if (client_fd >= 0)
 				{
 					register_client(client_fd);
 					break ;
