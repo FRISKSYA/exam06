@@ -1,141 +1,90 @@
-#include <errno.h>
-#include <string.h>
 #include <unistd.h>
-#include <netdb.h>
+#include <string.h>
 #include <stdlib.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
+#include <stdio.h>
+#include <netinet/ip.h>
 
-int extract_message(char **buf, char **msg)
+int	count = 0, max_fd = 0;
+int	ids[65536];
+char	*msgs[65536];
+
+fd_set	rfds, wfds, afds;
+char	buf_read[1001], buf_write[42];
+
+int	extract_message(char **buf, char **msg);
+
+char	*str_join(char *buf, char *add);
+
+void	fatal_error();
+
+void	notify_other(int author, char *str);
+
+void	register_client(int fd);
+
+void	remove_client(int fd);
+
+void	send_msg(int fd);
+
+int		create_socket();
+
+int	main(int argc, char **argv)
 {
-	char	*newbuf;
-	int		i;
-
-	*msg = 0;
-	if (*buf == 0)
-		return (0);
-	i = 0;
-	while ((*buf)[i])
+	if (ac != 2)
 	{
-		if ((*buf)[i] == '\n')
-		{
-			newbuf = malloc(sizeof(*newbuf) * (strlen(*buf + i + 1) + 1));
-			if (newbuf == NULL)
-				return (-1);
-			strcpy(newbuf, *buf + i + 1);
-			*msg = *buf;
-			(*msg)[i + 1] = 0;
-			*buf = newbuf;
-			return (1);
-		}
-		++i;
-	}
-	return (0);
-}
-
-char *str_join(char *buf, char *add)
-{
-	char	*newbuf;
-	int		len;
-
-	if (buf == 0)
-		len = 0;
-	else
-		len = strlen(buf);
-	newbuf = malloc(sizeof(*newbuf) * (len + strlen(add) + 1));
-	if (newbuf == NULL)
-		return (0);
-	if (buf != 0)
-		strcat(newbuf, buf);
-	free(buf);
-	strcat(newbuf, add);
-	return (newbuf);
-}
-
-int main(int argc, char **argv)
-{
-	int sockfd, connfd, max_fd, ret;
-	socklen_t	len;
-	struct timeval timeout;
-	struct sockaddr_in servaddr, cli;
-	fd_set set_read, set_write;
-	char buff[4096];
-	ssize_t ssize_len;
-
-	if (argc != 2)
-	{
-		write(1, "Wrong number of arguments\n", 26);
+		write(2, "Wrong number of arguments\n", 26);
 		exit(1);
 	}
-	// socket create and verification
-	sockfd = socket(AF_INET, SOCK_STREAM, 0);
-	if (sockfd == -1)
-	{
-		write(1, "Fatal error\n", 12);
-		exit(1);
-	}
+
+	FD_ZERO(&afds);
+	int sockfd = create_socket();
+
+	struct sockaddr_in servaddr;
 	bzero(&servaddr, sizeof(servaddr));
-	// assign IP, PORT
+
 	servaddr.sin_family = AF_INET;
-	servaddr.sin_addr.s_addr = htonl(2130706433); //127.0.0.1
+	servaddr.sin_addr.s_addr = htonl(2130706433);
 	servaddr.sin_port = htons(atoi(argv[1]));
 
-	// Binding newly created socket to given IP and verification
-	if ((bind(sockfd, (const struct sockaddr *)&servaddr, sizeof(servaddr))) != 0)
+	if (bind(sockfd, (const struct sockaddr *)&servaddr, sizeof(servaddr)))
+		fatal_error();
+	if (listen(sockfd, SOMAXCONN))
+		fatal_error();
+
+	while (1)
 	{
-		write(1, "Fatal error\n", 12);
-		exit(1);
-	}
-	if (listen(sockfd, 10) != 0)
-	{
-		write(1, "Fatal error\n", 12);
-		exit(1);
-	}
-	len = sizeof(cli);
-	timeout.tv_sec = 5;
-	timeout.tv_usec = 0;
-	FD_ZERO(&set_read);
-	FD_ZERO(&set_write);
-	FD_SET(sockfd, &set_read);
-	max_fd = sockfd;
-	bzero(&buff, 4096);
-	connfd = -1;
-	while (42)
-	{
-		ret = select(max_fd + 1, &set_read, &set_write, NULL, &timeout);
-		if (ret > 0)
+		rfds = wfds = afds;
+
+		if (select(max_fd + 1, &rfds, &wfds, NULL, NULL) < 0)
+			fatal_error();
+
+		for (int fd = 0; fd <= max_fd; ++fd)
 		{
-			if (FD_ISSET(sockfd, &set_read))
+			if (!FD_ISSET(fd, &rfds))
+				continue;
+
+			if (fd == sockfd)
 			{
-				connfd = accept(sockfd, (struct sockaddr *)&cli, &len);
-				if (connfd < 0)
+				socklen_t addr_len = sizeof(servaddr);
+				int client_fd = accept(sockfd, (struct sockaddr *)&servaddr, &addr_len);
+				if (clinet_fd >= 0)
 				{
-					write(1, "Fatal error\n", 12);
-					exit (1);
+					register_client(client_fd);
+					break ;
 				}
-				FD_SET(connfd, &set_read);
-				max_fd = (max_fd < connfd ? connfd : max_fd);
-				write(1, "connected\n", 10);
 			}
-			else if (connfd != -1 && FD_ISSET(connfd, &set_read))
+			else
 			{
-				ssize_len = recv(connfd, &buff, 4096, 0);
-				if (ssize_len <= 0)
+				int	read_bytes = recv(fd, buf_read, 1000, 0);
+				if (read_bytes <= 0)
 				{
-					FD_ZERO(&set_read);
-					FD_SET(sockfd, &set_read);
-					max_fd = sockfd;
-					close(connfd);
-					connfd = -1;
-					write(1, "dissconnected\n", 13);
+					remove_client(fd);
+					break ;
 				}
-				else
-					write(1, buff, ssize_len);
+				buf_read[read_bytes] = '\0';
+				msgs[fd] = str_join(msgs[fd], buf_read);
+				send_msg(fd);
 			}
 		}
 	}
-}
-
-
 	return 0;
 }
