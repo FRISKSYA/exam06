@@ -11,9 +11,37 @@ char	*msgs[65536];
 fd_set	rfds, wfds, afds;
 char	buf_read[1001], buf_write[42];
 
-int	extract_message(char **buf, char **msg);
+int	extract_message(char **buf, char **msg)
+{
+	char	*newbuf;
+	int		i;
 
-char	*str_join(char *buf, char *add);
+	*msg = 0;
+	if (*buf == 0)
+		return 0;
+	i = 0;
+	while ((*buf)[i])
+	{
+		if ((*buf)[i] == '\n')
+		{
+			newbuf = calloc(1, sizeof(*newbuf) * (strlen(*buf + i + 1) + 1));
+			if (newbuf == 0)
+				return -1;
+			strcpy(newbuf, *buf + i + 1);
+			*msg = *buf;
+			(*msg)[i + 1] = 0;
+			*buf = newbuf;
+			return 1;
+		}
+		++i;
+	}
+	return 0;
+}
+
+char	*str_join(char *buf, char *add)
+{
+	
+}
 
 void	fatal_error();
 
