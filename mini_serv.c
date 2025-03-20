@@ -62,5 +62,80 @@ int main(int argc, char **argv)
 	char buff[4096];
 	ssize_t ssize_len;
 
+	if (argc != 2)
+	{
+		write(1, "Wrong number of arguments\n", 26);
+		exit(1);
+	}
+	// socket create and verification
+	sockfd = socket(AF_INET, SOCK_STREAM, 0);
+	if (sockfd == -1)
+	{
+		write(1, "Fatal error\n", 12);
+		exit(1);
+	}
+	bzero(&servaddr, sizeof(servaddr));
+	// assign IP, PORT
+	servaddr.sin_family = AF_INET;
+	servaddr.sin_addr.s_addr = htonl(2130706433); //127.0.0.1
+	servaddr.sin_port = htons(atoi(argv[1]));
+
+	// Binding newly created socket to given IP and verification
+	if ((bind(sockfd, (const struct sockaddr *)&servaddr, sizeof(servaddr))) != 0)
+	{
+		write(1, "Fatal error\n", 12);
+		exit(1);
+	}
+	if (listen(sockfd, 10) != 0)
+	{
+		write(1, "Fatal error\n", 12);
+		exit(1);
+	}
+	len = sizeof(cli);
+	timeout.tv_sec = 5;
+	timeout.tv_usec = 0;
+	FD_ZERO(&set_read);
+	FD_ZERO(&set_write);
+	FD_SET(sockfd, &set_read);
+	max_fd = sockfd;
+	bzero(&buff, 4096);
+	connfd = -1;
+	while (42)
+	{
+		ret = select(max_fd + 1, &set_read, &set_write, NULL, &timeout);
+		if (ret > 0)
+		{
+			if (FD_ISSET(sockfd, &set_read))
+			{
+				connfd = accept(sockfd, (struct sockaddr *)&cli, &len);
+				if (connfd < 0)
+				{
+					write(1, "Fatal error\n", 12);
+					exit (1);
+				}
+				FD_SET(connfd, &set_read);
+				max_fd = (max_fd < connfd ? connfd : max_fd);
+				write(1, "connected\n", 10);
+			}
+			else if (connfd != -1 && FD_ISSET(connfd, &set_read))
+			{
+				ssize_len = recv(connfd, &buff, 4096, 0);
+				if (ssize_len <= 0)
+				{
+					FD_ZERO(&set_read);
+					FD_SET(sockfd, &set_read);
+					max_fd = sockfd;
+					close(connfd);
+					connfd = -1;
+					write(1, "dissconnected\n", 13);
+				}
+				else
+					write(1, buff, ssize_len);
+			}
+		}
+	}
+}
+
+
 	return 0;
 }
