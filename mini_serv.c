@@ -11,6 +11,8 @@ char	*msgs[65536];
 fd_set	rfds, wfds, afds;
 char	buf_read[1001], buf_write[42];
 
+// ===== copy from main : begin =====
+
 int	extract_message(char **buf, char **msg)
 {
 	char	*newbuf;
@@ -57,6 +59,8 @@ char	*str_join(char *buf, char *add)
 	strcat(newbuf, add);
 	return (newbuf);
 }
+
+// ===== copy from main : end =====
 
 void	fatal_error()
 {
