@@ -40,20 +40,79 @@ int	extract_message(char **buf, char **msg)
 
 char	*str_join(char *buf, char *add)
 {
-	
+	char	*newbuf;
+	int		len;
+
+	if (buf == 0)
+		len = 0;
+	else
+		len = strlen(buf);
+	newbuf = malloc(sizeof(*newbuf) * (len + strlen(add) + 1));
+	if (newbuf == 0)
+		return 0;
+	newbuf[0] = 0;
+	if (buf != 0)
+		strcat(newbuf, buf);
+	free(buf);
+	strcat(newbuf, add);
+	return (newbuf);
 }
 
-void	fatal_error();
+void	fatal_error()
+{
+	write(2, "Fatal error\n", 12);
+	exit(1);
+}
 
-void	notify_other(int author, char *str);
+void	notify_other(int author, char *str)
+{
+	for (int fd = 0; fd <= max_fd; ++fd)
+	{
+		if (FD_ISSET(fd, &wfds) && fd != author)
+			send(fd, str, strlen(str), 0);
+	}
+}
 
-void	register_client(int fd);
+void	register_client(int fd)
+{
+	max_fd = fd > max_fd ? fd : max_fd;
+	ids[fd] = count++;
+	msgs[fd] = NULL;
+	FD_SET(fd, &afds);
+	sprintf(buf_write, "server: client %d just arrived\n", ids[fd]);
+	notify_other(fd, buf_write);
+}
 
-void	remove_client(int fd);
+void	remove_client(int fd)
+{
+	sprintf(buf_write, "server: client %d just left\n", ids[fd]);
+	notify_other(fd, buf_write);
+	free(msgs[fd]);
+	FD_CLR(fd, &afds);
+	close(fd);
+}
 
-void	send_msg(int fd);
+void	send_msg(int fd)
+{
+	char	*msg;
 
-int		create_socket();
+	while(extract_message(&(msgs[fd]), &msg))
+	{
+		sprintf(buf_write, "client %d: ", ids[fd]);
+		notify_other(fd, buf_write);
+		notify_other(fd, msg);
+		free(msg);
+	}
+}
+
+int		create_socket()
+{
+	max_fd = socket(AF_INET, SOCK_STREAM, 0);
+	if (max_fd < 0)
+		fatal_error();
+	FD_SET(max_fd, &afds);
+	return max_fd;
+}
 
 int	main(int argc, char **argv)
 {
