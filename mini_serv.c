@@ -100,7 +100,7 @@ void	send_msg(int fd)
 {
 	char	*msg;
 
-	while(extract_message(&(msgs[fd]), &msg))
+	while (extract_message(&(msgs[fd]), &msg))
 	{
 		sprintf(buf_write, "client %d: ", ids[fd]);
 		notify_other(fd, buf_write);
@@ -130,15 +130,17 @@ int	main(int argc, char **argv)
 	int sockfd = create_socket();
 
 	struct sockaddr_in servaddr;
-	bzero(&servaddr, sizeof(servaddr));
+	bzero(&servaddr, sizeof(servaddr)); 
 
-	servaddr.sin_family = AF_INET;
-	servaddr.sin_addr.s_addr = htonl(2130706433);
-	servaddr.sin_port = htons(atoi(argv[1]));
+	// assign IP, PORT 
+	servaddr.sin_family = AF_INET; 
+	servaddr.sin_addr.s_addr = htonl(2130706433); //127.0.0.1
+	servaddr.sin_port = htons(atoi(argv[1])); 
 
-	if (bind(sockfd, (const struct sockaddr *)&servaddr, sizeof(servaddr)))
+	// Binding newly created socket to given IP and verification 
+	if ((bind(sockfd, (const struct sockaddr *)&servaddr, sizeof(servaddr))))
 		fatal_error();
-	if (listen(sockfd, SOMAXCONN))
+	if (listen(sockfd, SOMAXCONN) != 0)
 		fatal_error();
 
 	while (1)
