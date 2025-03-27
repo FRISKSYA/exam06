@@ -4,6 +4,16 @@
 #include <netdb.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <stdlib.h>
+
+typedef struct s_client {
+    int id;
+    char *msg;
+}   t_client;
+
+t_client clients[FD_SETSIZE];
+fd_set  master_set, read_set, write_set;
+int max_fd = 0, next_id = 0;
 
 int extract_message(char **buf, char **msg)
 {
@@ -60,8 +70,8 @@ void    fatal_error()
 
 int main(int argc, char **argv)
 {
-	int sockfd, connfd, len;
-	struct sockaddr_in servaddr, cli; 
+	int sockfd;
+	struct sockaddr_in servaddr; 
 
     if (argc != 2)
     {
@@ -85,9 +95,21 @@ int main(int argc, char **argv)
         fatal_error();
 	if (listen(sockfd, SOMAXCONN) != 0) 
         fatal_error();
-	len = sizeof(cli);
-	connfd = accept(sockfd, (struct sockaddr *)&cli, &len);
-	if (connfd < 0) 
-        fatal_error();
+
+    FD_ZERO(&master_set);
+    FD_SET(sockfd, &master_set);
+    max_fd = sockfd;
+
+    for (int i = 0; i < FD_SETSIZE; ++i)
+        clients[i].msg = NULL;
+
+    while (1)
+    {
+        read_set = write_set = master_set;
+
+        if (select(max_fd + 1, &read_set, &write_set, NULL, NULL) < 0)
+            fatal_error();
+    }
+
     return (0);
 }
