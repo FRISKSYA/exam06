@@ -76,7 +76,7 @@ void    send_all(int except_fd, char *msg)
 {
     for (int fd = 0; fd <= max_fd; ++fd)
     {
-        if (FD_ISSET(fd, &master_set) && fd != except_fd)
+        if (FD_ISSET(fd, &write_set) && fd != except_fd)
         {
             if (send(fd, msg, strlen(msg), 0) < 0)
                 fatal_error();
