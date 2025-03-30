@@ -8,7 +8,7 @@
 #include <stdio.h>
 
 typedef struct s_client{
-	int	fd;
+	int	id;
 	char *msg;
 }	t_client;
 
@@ -93,8 +93,14 @@ int main(int argc, char **argv) {
 		fatal_error();
 	if (listen(sockfd, SOMAXCONN) != 0)
 		fatal_error();
-	len = sizeof(cli);
-	connfd = accept(sockfd, (struct sockaddr *)&cli, &len);
-	if (connfd < 0)
-		fatal_error();
+	// len = sizeof(cli);
+	// connfd = accept(sockfd, (struct sockaddr *)&cli, &len);
+	// if (connfd < 0)
+	// 	fatal_error();
+
+	FD_ZERO(&master_set);
+	FD_SET(sockfd, &master_set);
+	max_fd = sockfd;
+
+	for (int )
 }
