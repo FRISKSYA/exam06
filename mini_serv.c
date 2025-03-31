@@ -14,9 +14,9 @@ typedef struct s_client
 }	t_client;
 
 t_client	clients[2048];
-fd_set		write_set, read_set, current;
+fd_set		w_set, r_set, master;
 int			maxfd = 0, gid = 0;
-char		send_buffer[1000000], recv_buffer[1000000];
+char		s_buf[1000000], r_buf[1000000];
 
 void	err(char *msg)
 {
@@ -32,8 +32,8 @@ void	send_to_all(int except_fd)
 {
 	for (int fd = 0; fd <= maxfd; fd++)
 	{
-		if (FD_ISSET(fd, &write_set) && fd != except_fd)
-			if (send(fd, send_buffer, strlen(send_buffer), 0) == -1)
+		if (FD_ISSET(fd, &w_set) && fd != except_fd)
+			if (send(fd, s_buf, strlen(s_buf), 0) == -1)
 				err(NULL);
 	}
 }
@@ -43,56 +43,56 @@ int	main(int argc, char **argv)
 	if (argc != 2)
 		err("Wrong number of arguments");
 
-	struct sockaddr_in	serveraddr;
+	struct sockaddr_in	servaddr;
 	socklen_t			len;
 
-	int	serverfd = socket(AF_INET, SOCK_STREAM, 0);
-	if (serverfd == -1) err(NULL);
-	maxfd = serverfd;
+	int	sockfd = socket(AF_INET, SOCK_STREAM, 0);
+	if (sockfd == -1) err(NULL);
+	maxfd = sockfd;
 
-	FD_ZERO(&current);
-	FD_SET(serverfd, &current);
+	FD_ZERO(&master);
+	FD_SET(sockfd, &master);
 	bzero(clients, sizeof(clients));
-	bzero(&serveraddr, sizeof(serveraddr));
+	bzero(&servaddr, sizeof(servaddr));
 
-	serveraddr.sin_family = AF_INET;
-	serveraddr.sin_addr.s_addr = htonl(INADDR_ANY);
-	serveraddr.sin_port = htons(atoi(argv[1]));
+	servaddr.sin_family = AF_INET;
+	servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
+	servaddr.sin_port = htons(atoi(argv[1]));
 
-	if (bind(serverfd, (const struct sockaddr *)&serveraddr, sizeof(serveraddr)) != 0
-		|| listen(serverfd, 100) != 0)
+	if (bind(sockfd, (const struct sockaddr *)&servaddr, sizeof(servaddr)) != 0
+		|| listen(sockfd, 100) != 0)
 		err(NULL);
 
 	while (1)
 	{
-		read_set = write_set = current;
-		if (select(maxfd + 1, &read_set, &write_set, 0, 0) < 0)
+		r_set = w_set = master;
+		if (select(maxfd + 1, &r_set, &w_set, 0, 0) < 0)
 			err(NULL);
 
 		for (int fd = 0; fd <= maxfd; fd++)
 		{
-			if (FD_ISSET(fd, &read_set))
+			if (FD_ISSET(fd, &r_set))
 			{
-				if (fd == serverfd)
+				if (fd == sockfd)
 				{
-					int clientfd = accept(serverfd, (struct sockaddr *)&serveraddr, &len);
+					int clientfd = accept(sockfd, (struct sockaddr *)&servaddr, &len);
 					if (clientfd == -1) err(NULL);
 					if (clientfd > maxfd) maxfd = clientfd;
-					FD_SET(clientfd, &current);
+					FD_SET(clientfd, &master);
 					clients[clientfd].id = gid++;
-					sprintf(send_buffer, "server: client %d just arrived\n", clients[clientfd].id);
+					sprintf(s_buf, "server: client %d just arrived\n", clients[clientfd].id);
 					send_to_all(clientfd);
-					bzero(send_buffer, sizeof(send_buffer));
+					bzero(s_buf, sizeof(s_buf));
 				}
 				else
 				{
-					int ret = recv(fd, recv_buffer, sizeof(recv_buffer), 0);
+					int ret = recv(fd, r_buf, sizeof(r_buf), 0);
 					if (ret <= 0)
 					{
-						sprintf(send_buffer, "server: client %d just left\n", clients[fd].id);
+						sprintf(s_buf, "server: client %d just left\n", clients[fd].id);
 						send_to_all(fd);
-						bzero(send_buffer, sizeof(send_buffer));
-						FD_CLR(fd, &current);
+						bzero(s_buf, sizeof(s_buf));
+						FD_CLR(fd, &master);
 						bzero(clients[fd].msg, sizeof(clients[fd].msg));
 						close(fd);
 					}
@@ -100,13 +100,13 @@ int	main(int argc, char **argv)
 					{
 						for (int i = 0, j = strlen(clients[fd].msg); i < ret; i++, j++)
 						{
-							clients[fd].msg[j] = recv_buffer[i];
+							clients[fd].msg[j] = r_buf[i];
 							if (clients[fd].msg[j] == '\n')
 							{
 								clients[fd].msg[j] = '\0';
-								sprintf(send_buffer, "client %d: %s\n", clients[fd].id, clients[fd].msg);
+								sprintf(s_buf, "client %d: %s\n", clients[fd].id, clients[fd].msg);
 								send_to_all(fd);
-								bzero(send_buffer, sizeof(send_buffer));
+								bzero(s_buf, sizeof(s_buf));
 								bzero(clients[fd].msg, sizeof(clients[fd].msg));
                                 j = -1;
 							}
